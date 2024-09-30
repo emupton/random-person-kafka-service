@@ -1,28 +1,48 @@
 package com.example.backendservice
 
 import cats.effect.Sync
+import cats.effect.kernel.Async
 import cats.implicits._
-import com.example.backendservice.Models.Person
+import com.example.backendservice.Models.{ApiResponse, PartitionPersonRecordMappings, Person, Topic}
 import org.http4s.HttpRoutes
-import org.http4s.circe.CirceEntityCodec.circeEntityEncoder
-import org.http4s.dsl.Http4sDsl
+import sttp.tapir._
+import sttp.tapir.generic.auto.schemaForCaseClass
+import sttp.tapir.json.circe._
+import sttp.tapir.server.http4s.Http4sServerInterpreter
 
 object BackendserviceRoutes {
 
-  def topicRoutes[F[_]: Sync](K: KafkaConsumerService[F]): HttpRoutes[F] = {
-    val dsl = new Http4sDsl[F] {}
-    import dsl._
-    object CountQueryParamMatcher extends OptionalQueryParamDecoderMatcher[Int]("count")
+  def topicRoutes[F[_]: Async](K: KafkaConsumerService[F]): HttpRoutes[F] = {
+    val topicEndpoint: Endpoint[Unit, (Topic, Long, Option[Int]), String, ApiResponse, Any] =
+      endpoint.get
+        .in("topic" / path[Topic]("topic"))
+        .in(path[Long]("offset"))
+        .in(
+          query[Option[Int]]("count")
+            .description("Optional count parameter")
+            .validateOption(Validator.max(1000)))
+        .out(jsonBody[ApiResponse])
+        .errorOut(stringBody)
 
-    HttpRoutes.of[F] {
-      case GET -> Root / "topic" / topicName / offset :? CountQueryParamMatcher(count) =>
-        // Handle the request with topicName, optional offset, and optional count
+    val logic: (Topic, Option[Int], Long) => F[Map[Int, List[Person]]] = {
+      case (topic, countOpt, offset) =>
         for {
-          records <- K.createConsumer(topicName, count.getOrElse(500)).use { consumer =>
-            K.consume[Person](consumer, topicName, offset.toLong)
+          count <- Sync[F].pure(countOpt.getOrElse(500))
+          records <- K.createConsumer(topic, count).use { consumer =>
+            K.consume[Person](consumer, topic, offset)
           }
-          resp <- Ok(records)
-        } yield resp
+        } yield records
     }
+
+    Http4sServerInterpreter[F]().toRoutes(topicEndpoint.serverLogic {
+      case (topic, countOpt, offset) =>
+        logic(topic, offset, countOpt).attempt.map {
+          case Right(records) =>
+            Right(ApiResponse(records.map { case (i, persons) =>
+              PartitionPersonRecordMappings(i, persons)
+            }.toList))
+          case Left(_) => Left("An error occurred while consuming records.")
+        }
+    })
   }
 }

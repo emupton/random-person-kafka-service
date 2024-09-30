@@ -2,6 +2,7 @@ package com.example.backendservice
 
 import cats.effect._
 import cats.implicits._
+import com.example.backendservice.Models.{KafkaConfig, Topic}
 import io.circe.{Decoder, jawn}
 import org.apache.kafka.clients.consumer.{ConsumerConfig, KafkaConsumer}
 import org.apache.kafka.common.TopicPartition
@@ -11,11 +12,11 @@ import org.typelevel.log4cats.Logger
 import java.util.Properties
 
 trait KafkaConsumerService[F[_]] {
-  def createConsumer(topic: String, maxRecords: Int): Resource[F, KafkaConsumer[String, String]]
+  def createConsumer(topic: Topic, maxRecords: Int): Resource[F, KafkaConsumer[String, String]]
 
   def consume[T: Decoder](
       consumer: KafkaConsumer[String, String],
-      topic: String,
+      topic: Topic,
       offset: Long): F[Map[Int, List[T]]]
 
 }
@@ -26,7 +27,7 @@ object KafkaConsumerService {
       extends KafkaConsumerService[F] {
 
     override def createConsumer(
-        topic: String,
+        topic: Topic,
         maxRecords: Int): Resource[F, KafkaConsumer[String, String]] = {
       Resource.make {
         for {
@@ -41,9 +42,11 @@ object KafkaConsumerService {
             properties.setProperty(
               ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
               classOf[StringDeserializer].getName)
-            properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, kafkaConfig.consumerGroupId)
+            properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, kafkaConfig.clientId)
             properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false")
-            // todo: Either move to kafka config or manage in consumer
+            /* INFO: Not sure if it's best to control the number of records polled this way,
+              or aggregate them in memory via subsequent polls tail recursively in the consume function
+             */
             properties.setProperty(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, maxRecords.toString)
             val consumer = new KafkaConsumer[String, String](properties)
             consumer
@@ -57,13 +60,14 @@ object KafkaConsumerService {
       }
     }
 
-    override def consume[T](consumer: KafkaConsumer[String, String], topic: String, offset: Long)(
+    override def consume[T](consumer: KafkaConsumer[String, String], topic: Topic, offset: Long)(
         implicit decoder: Decoder[T]): F[Map[Int, List[T]]] = {
       import scala.jdk.CollectionConverters._
+      // Retrieve from admin client number of partitions
       val topicPartitions =
         Range
           .inclusive(1, kafkaConfig.numberOfPartitions)
-          .map(n => new TopicPartition(topic, n))
+          .map(n => new TopicPartition(topic.entryName, n))
           .toList
 
       for {
@@ -89,7 +93,9 @@ object KafkaConsumerService {
                     logger.error(
                       s"Error decoding record: ${error.getMessage}, raw record: ${rawRecord}"): Unit
                     None
-                  case Right(value) => Some(value)
+                  case Right(value) =>
+                    logger.info(s"Successfully decoded record: ${record.value()}"): Unit
+                    Some(value)
                 }
               }
 

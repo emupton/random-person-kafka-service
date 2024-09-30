@@ -3,6 +3,9 @@ package com.example.backendservice
 import cats.effect._
 import cats.implicits._
 import cats.implicits.catsSyntaxApplicativeError
+import com.example.backendservice.Models.{KafkaConfig, Topic}
+import io.circe.Encoder
+import io.circe.syntax.EncoderOps
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.serialization.StringSerializer
 import org.typelevel.log4cats.Logger
@@ -13,11 +16,11 @@ trait KafkaProducerService[F[_]] {
 
   def createProducer(): Resource[F, KafkaProducer[String, String]]
 
-  def sendMessage(
+  def sendMessage[T: Encoder](
       producer: KafkaProducer[String, String],
-      topic: String,
+      topic: Topic,
       key: String,
-      value: String): F[Unit]
+      value: T): F[Unit]
 
 }
 
@@ -48,20 +51,20 @@ object KafkaProducerService {
       }
     }
 
-    override def sendMessage(
+    override def sendMessage[T: Encoder](
         producer: KafkaProducer[String, String],
-        topic: String,
+        topic: Topic,
         key: String,
-        value: String): F[Unit] = for {
+        value: T): F[Unit] = for {
       _ <- Sync[F]
         .delay {
-          val kafkaRecord = new ProducerRecord[String, String](topic, key, value)
+          val kafkaRecord = new ProducerRecord[String, String](topic.entryName, key, value.asJson.show)
           producer.send(kafkaRecord)
           producer.flush()
         }
         .handleErrorWith(error =>
           logger.error(error)(s"Failed to send message ${error.getMessage}"))
-      _ <- (logger.info(s"Successfully sent message ${value}"))
+      _ <- (logger.debug(s"Successfully sent message ${value}"))
     } yield ()
   }
 }

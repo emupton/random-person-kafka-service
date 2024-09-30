@@ -5,7 +5,7 @@
 SBT, Scala, Docker
 ### Kafka setup
 The kafka image is defined in the `docker-compose.yaml` file, and the `kafka_setup.sh` initialises docker-compose,
-waits for the kafka image to startup, and then will create a `random_people` topic with the appropriate configuration
+waits for the kafka image to startup, and then will create a `RandomPeople` topic with the appropriate configuration
 (3 partitions and a replication factor of 1).
 
 To run:
@@ -16,5 +16,11 @@ chmod +x kafka_setup.sh
 ```
 
 ### Running the backend API
-
+```
+docker-compose up
+sbt run
+```
 ### Running the bootstrap code
+```sh
+sbt "runMain com.example.backendservice.PopulateData"
+```

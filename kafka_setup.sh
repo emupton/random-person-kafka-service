@@ -11,10 +11,10 @@ check_kafka_running
 
 docker exec kafka /opt/kafka/bin/kafka-topics.sh \
   --bootstrap-server localhost:9092 \
-  --topic random_people \
+  --topic RandomPeople \
   --create \
   --partitions 3 \
   --replication-factor 1 \
   --config cleanup.policy=compact
 
-echo "Topic 'random_people' created successfully."
+echo "Topic 'RandomPeople' created successfully."
