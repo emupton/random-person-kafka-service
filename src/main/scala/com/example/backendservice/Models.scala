@@ -85,7 +85,6 @@ object Models {
             salary)
         }
 
-        // Decode CtRoot using the custom Person decoder
         deriveDecoder[CtRoot].apply(c)
       }
     }
@@ -99,9 +98,7 @@ object Models {
     case object RandomPeople extends Topic
   }
 
-  final case class KafkaConfig(
-      bootstrapServers: String,
-      clientId: String)
+  final case class KafkaConfig(bootstrapServers: String, clientId: String)
 
   final case class PartitionPersonRecordMappings(partition: Int, persons: List[Person])
 

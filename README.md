@@ -23,7 +23,7 @@ sbt run
 
 It runs on port 8080 by default.
 
-An example API request: http://localhost/topic/RandomPeople/0?count=5000
+An example API request: http://localhost:8080/topic/RandomPeople/0?count=5000
 ### Running the bootstrap code
 ```sh
 sbt "runMain com.example.backendservice.PopulateData"
