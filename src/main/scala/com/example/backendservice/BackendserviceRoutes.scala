@@ -20,7 +20,7 @@ object BackendserviceRoutes {
         .in(
           query[Option[Int]]("count")
             .description("Optional count parameter")
-            .validateOption(Validator.max(1000)))
+            .validateOption(Validator.max(10000)))
         .out(jsonBody[ApiResponse])
         .errorOut(stringBody)
 
@@ -41,7 +41,8 @@ object BackendserviceRoutes {
             Right(ApiResponse(records.map { case (i, persons) =>
               PartitionPersonRecordMappings(i, persons)
             }.toList))
-          case Left(_) => Left("An error occurred while consuming records.")
+          case Left(_) =>
+            Left("An error occurred while consuming records.")
         }
     })
   }

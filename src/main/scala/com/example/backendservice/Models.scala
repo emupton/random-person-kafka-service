@@ -97,14 +97,11 @@ object Models {
     val values = findValues
 
     case object RandomPeople extends Topic
-
   }
 
   final case class KafkaConfig(
       bootstrapServers: String,
-      clientId: String,
-      // todo: Try to retrieve number of partitions from AdminClient rather than pulling from config
-      numberOfPartitions: Int)
+      clientId: String)
 
   final case class PartitionPersonRecordMappings(partition: Int, persons: List[Person])
 

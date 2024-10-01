@@ -20,6 +20,10 @@ chmod +x kafka_setup.sh
 docker-compose up
 sbt run
 ```
+
+It runs on port 8080 by default.
+
+An example API request: http://localhost/topic/RandomPeople/0?count=5000
 ### Running the bootstrap code
 ```sh
 sbt "runMain com.example.backendservice.PopulateData"

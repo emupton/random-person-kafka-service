@@ -24,10 +24,11 @@ object BackendserviceServer {
 
     val errorHandler: PartialFunction[Throwable, IO[Response[IO]]] = (error) => {
       import org.http4s.dsl.io._
-      // TODO: Fix, better error matching & error handling all around
-      logger.error(error)(s"Exception throw: ${error.getMessage}"): Unit
-      // todo: cleanup/JSON response
-      InternalServerError("Unknown error".pure[IO])
+      logger.error(error)(s"Exception throw: ${error.getMessage}").flatMap { _ =>
+        // INFO: The error handling could be greatly improved all around,
+        // doing .adaptErr on any error prone logic & place it in class with appropriate information about api response
+        InternalServerError("Unknown error".pure[IO])
+      }
     }
 
     EmberServerBuilder

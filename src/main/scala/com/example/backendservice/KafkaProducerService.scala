@@ -13,7 +13,6 @@ import org.typelevel.log4cats.Logger
 import java.util.Properties
 
 trait KafkaProducerService[F[_]] {
-
   def createProducer(): Resource[F, KafkaProducer[String, String]]
 
   def sendMessage[T: Encoder](
@@ -21,7 +20,6 @@ trait KafkaProducerService[F[_]] {
       topic: Topic,
       key: String,
       value: T): F[Unit]
-
 }
 
 object KafkaProducerService {
@@ -30,22 +28,23 @@ object KafkaProducerService {
       extends KafkaProducerService[F] {
     override def createProducer(): Resource[F, KafkaProducer[String, String]] = {
       Resource.make {
-        Sync[F].delay {
-          val properties = new Properties()
-          properties.setProperty(
-            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
-            kafkaConfig.bootstrapServers)
-          properties.setProperty(
-            ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
-            classOf[StringSerializer].getName)
-          properties.setProperty(
-            ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
-            classOf[StringSerializer].getName)
+        for {
+          producer <- Sync[F].delay {
+            val properties = new Properties()
+            properties.setProperty(
+              ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
+              kafkaConfig.bootstrapServers)
+            properties.setProperty(
+              ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
+              classOf[StringSerializer].getName)
+            properties.setProperty(
+              ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+              classOf[StringSerializer].getName)
 
-          val producer = new KafkaProducer[String, String](properties)
-          logger.debug("Successfully created producer"): Unit
-          producer
-        }
+            new KafkaProducer[String, String](properties)
+          }.onError(error => logger.error(error)(s"Failed to create kafka producer"))
+          _ <- logger.info("Successfully created producer")
+        } yield producer
       } { producer =>
         Sync[F].delay(producer.close())
       }
@@ -58,13 +57,14 @@ object KafkaProducerService {
         value: T): F[Unit] = for {
       _ <- Sync[F]
         .delay {
-          val kafkaRecord = new ProducerRecord[String, String](topic.entryName, key, value.asJson.show)
+          val kafkaRecord =
+            new ProducerRecord[String, String](topic.entryName, key, value.asJson.show)
           producer.send(kafkaRecord)
           producer.flush()
         }
         .handleErrorWith(error =>
           logger.error(error)(s"Failed to send message ${error.getMessage}"))
-      _ <- (logger.debug(s"Successfully sent message ${value}"))
+      _ <- (logger.info(s"Successfully sent message ${value}"))
     } yield ()
   }
 }
